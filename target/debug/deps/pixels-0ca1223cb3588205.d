@@ -1,0 +1,10 @@
+/Users/qaysarmanken/Documents/winit-prototype/chip8-prototype-gui/target/debug/deps/libpixels-0ca1223cb3588205.rmeta: /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pixels-0.15.0/src/lib.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pixels-0.15.0/src/builder.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pixels-0.15.0/src/renderers.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pixels-0.15.0/src/../shaders/scale.wgsl
+
+/Users/qaysarmanken/Documents/winit-prototype/chip8-prototype-gui/target/debug/deps/libpixels-0ca1223cb3588205.rlib: /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pixels-0.15.0/src/lib.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pixels-0.15.0/src/builder.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pixels-0.15.0/src/renderers.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pixels-0.15.0/src/../shaders/scale.wgsl
+
+/Users/qaysarmanken/Documents/winit-prototype/chip8-prototype-gui/target/debug/deps/pixels-0ca1223cb3588205.d: /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pixels-0.15.0/src/lib.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pixels-0.15.0/src/builder.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pixels-0.15.0/src/renderers.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pixels-0.15.0/src/../shaders/scale.wgsl
+
+/Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pixels-0.15.0/src/lib.rs:
+/Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pixels-0.15.0/src/builder.rs:
+/Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pixels-0.15.0/src/renderers.rs:
+/Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pixels-0.15.0/src/../shaders/scale.wgsl:
