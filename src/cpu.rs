@@ -2,6 +2,10 @@ use std::fs;
 use pixels::wgpu::naga::proc::index;
 use rand::Rng;
 
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
+
 const MAX_REGISTER_LEN: usize = 16;
 const MAX_RAM_LEN: usize = 4096;
 const START_ADDR: usize = 512;
@@ -29,36 +33,49 @@ const KEY_HEXCODES: [u8; 16] = [
     0xF,
 ];
 
-pub enum StepResult {
-    Success,
-    Fail,
-    Skip,
+pub enum State {
+    Running,
+    Paused,
+    Drawing,
+}
+
+impl State {
+    pub fn new(state: &str) -> Self {
+        match state {
+            "running" => State::Running,
+            "paused" => State::Paused,
+            "drawing" => State::Drawing,
+            &_ => panic!("Invalid state"),
+        }
+    } 
 }
 
 pub struct CPU {
+    pub state: State,
     pc: usize,
     index: u16,
     buf: [u32; MAX_SCREEN_LEN],
     ram: [u8; MAX_RAM_LEN],
     reg: [u8; MAX_REGISTER_LEN],
     stack: Vec<u16>,
-    pub draw: bool,
     delay_timer: u8,
     sound_timer: u8,
-    pub keys: [u8; MAX_KEYPAD_LEN], // setting a keypad with 15 elements
+    pub keys: [bool; MAX_KEYPAD_LEN], // setting a keypad with 15 elements
+    pub draw: bool,
 }
 
 impl CPU {
     pub fn new() -> Self {
         Self {
+            state: State::Running,
+            draw: false,
             pc: START_ADDR,
             index: 0,
             buf: [0; MAX_SCREEN_LEN],
             ram: [0; MAX_RAM_LEN],
             reg: [0; MAX_REGISTER_LEN],
             stack: Vec::with_capacity(10),
-            keys: [0; MAX_KEYPAD_LEN],
-            draw: false,
+            keys: [false; MAX_KEYPAD_LEN],
             delay_timer: 0,
             sound_timer: 0,
         }
@@ -105,7 +122,7 @@ impl CPU {
         }
     }
 
-    pub fn step(&mut self) -> StepResult {
+    pub fn step(&mut self) -> State {
         let op = self.fetch();
 
         self.pc += 2;
@@ -122,7 +139,7 @@ impl CPU {
             0x0 => match op {
                 0x00e0 => self.op_00e0(),
                 0x00ee => self.op_00ee(),
-                _ => return StepResult::Fail,
+                _ => return State::Paused,
             },
             0x1 => self.op_1nnn(addr),
             0x2 => self.op_2nnn(addr),
@@ -146,7 +163,7 @@ impl CPU {
                 0x55 => self.op_fx55(x),
                 0x65 => self.op_fx65(x),
                 0x0a => self.op_fx0a(x),
-                _ => return StepResult::Fail,
+                _ => return State::Paused,
             },
             0x8 => match n {
                 0x0 => self.op_8xy0(x,y),
@@ -158,7 +175,7 @@ impl CPU {
                 0x6 => self.op_8xy6(x,y),
                 0x7 => self.op_8xy7(x,y), 
                 0xe => self.op_8xye(x,y),
-                _ => {return StepResult::Fail},
+                _ => {return State::Paused},
             },
             0xe => match op {
                 0xe09e => self.op_ex9e(x),
@@ -166,11 +183,11 @@ impl CPU {
                 _ => (),
             },
             _ => {
-                return StepResult::Fail;
+                return State::Paused;
             },
         }
 
-        StepResult::Success
+        State::Running
     }
 
     pub fn get_pixel_buf(&self) -> Vec<u32> {
@@ -195,19 +212,7 @@ impl CPU {
     }
 }
 
-// impl CPU {
-//     fn evaluate_state(&mut self, ) {
-//         match self.state {
-//             State::Running => (), // proceed, do nothing
-//             State::Debug => {
-//                 match op & 0xf000 {
 
-//                 }
-//             }, 
-//             _ => panic!("Invalid state")
-//         }
-//     }
-// }
 
 // All the CHIP8 instructions
 impl CPU {
@@ -340,41 +345,41 @@ impl CPU {
         }
     }
 
+    //TODO: revise later
     fn op_fx0a(&mut self, x: u8) {
         loop {
-            // println!("entering infinite input loop!");
-            // keep it at 60Hz in this loop
-            std::thread::sleep(std::time::Duration::from_millis(17));
-            //update our timers :3
-            self.update_dt();
-            self.update_st();
-
-            if let Some(pressed_key) = self.keys.iter().position(|&k| k == 1) {
-                // println!("key pressed!");
-                self.reg[x as usize] = KEY_HEXCODES[pressed_key];
-                break;
-            } else {
-                // println!("stopping instruction from proceeding");
-                self.pc += 2;
-                self.pc -= 2; // don't let instruction proceed
+            for i in 0..self.keys.len() {
+                if self.keys[i] {
+                    self.reg[x as usize] = KEY_HEXCODES[i];
+                    break;
+                }
             }
         }
     }
     
     fn op_ex9e(&mut self, x: u8) {
-        for i in 0..KEY_HEXCODES.len() {
+        println!("ex9e is being executed");
+        for i in 0..16 {
             // check that key is pressed and keycode matches vx
-            if self.keys[i] == 1 && KEY_HEXCODES[i] == self.reg[x as usize] {
+            if self.keys[i] && KEY_HEXCODES[i] == self.reg[x as usize] {
+                println!("ex9e...skipping instruction");
                 self.pc += 2; // skip if VX corresponds to a keycode
             }
         }
     }
 
     fn op_exa1(&mut self, x:u8) {
-        for i in 0..KEY_HEXCODES.len() {
-            // check that key is released and keycode matches vx
-            if self.keys[i] == 0 && KEY_HEXCODES[i] == self.reg[x as usize] {
-                self.pc += 2; // skip if 
+        let vx = self.reg[x as usize];
+        println!("vx: {:x}", vx);
+        // check if key is not pressed
+        // check if its contents matches vx
+        for i in 0..16 {
+            let keycode = KEY_HEXCODES[i];
+
+            if keycode == vx {
+                if !self.keys[i] {
+                    self.pc += 2;
+                }
             }
         }
     }
@@ -520,9 +525,7 @@ impl CPU {
                 }
 
             }
-
         }
-
         self.draw = true;
     }
 
