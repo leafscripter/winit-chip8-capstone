@@ -1,37 +1,15 @@
-use std::fs;
-use pixels::wgpu::naga::proc::index;
+use std::{char::MAX, fs};
 use rand::Rng;
-
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
+use std::collections::VecDeque;
 
 const MAX_REGISTER_LEN: usize = 16;
 const MAX_RAM_LEN: usize = 4096;
-const START_ADDR: usize = 512;
+const START_ADDR: u16 = 0x200; 
 const VIDEO_HEIGHT: u32 = 32;
 const VIDEO_WIDTH: u32 = 64;
 const MAX_SCREEN_LEN: usize = 64 * 32;
 const MAX_KEYPAD_LEN: usize = 16;
-
-const KEY_HEXCODES: [u8; 16] = [
-    0x1, 
-    0x2, 
-    0x3, 
-    0xC,
-    0x4, 
-    0x5, 
-    0x6, 
-    0xD,
-    0x7, 
-    0x8, 
-    0x9, 
-    0xE,
-    0xA, 
-    0x0, 
-    0xB, 
-    0xF,
-];
+const MAX_STACK_LEN: usize = 16;
 
 pub enum State {
     Running,
@@ -50,17 +28,24 @@ impl State {
     } 
 }
 
+#[derive(Copy, Clone, Debug)]
+pub struct Key {
+    pub scancode: u8,
+    pub pressed: bool,
+}
+
 pub struct CPU {
     pub state: State,
-    pc: usize,
+    pc: u16,
     index: u16,
-    buf: [u32; MAX_SCREEN_LEN],
+    pub buf: [u8; MAX_SCREEN_LEN],
     ram: [u8; MAX_RAM_LEN],
     reg: [u8; MAX_REGISTER_LEN],
-    stack: Vec<u16>,
+    stack: [u16; MAX_STACK_LEN],
+    sp: u8,
     delay_timer: u8,
     sound_timer: u8,
-    pub keys: [bool; MAX_KEYPAD_LEN], // setting a keypad with 15 elements
+    pub keypad: [Key; MAX_KEYPAD_LEN], // setting a keypad with 15 elements
     pub draw: bool,
 }
 
@@ -74,8 +59,9 @@ impl CPU {
             buf: [0; MAX_SCREEN_LEN],
             ram: [0; MAX_RAM_LEN],
             reg: [0; MAX_REGISTER_LEN],
-            stack: Vec::with_capacity(10),
-            keys: [false; MAX_KEYPAD_LEN],
+            stack: [0; 16],
+            sp: 0,
+            keypad: [Key{scancode: 0, pressed: false}; MAX_KEYPAD_LEN],
             delay_timer: 0,
             sound_timer: 0,
         }
@@ -93,10 +79,18 @@ impl CPU {
         let buf = fs::read(fpath).expect("File could not be read");
 
         for i in 0..buf.len() {
-            self.ram[START_ADDR + i] = buf[i];
+            self.ram[START_ADDR as usize + i] = buf[i];
         }
 
         self
+    }
+    
+    pub fn map_keypad(&mut self, chip8_scancodes: &[u8]) {
+        for (pos, key) in self.keypad.iter_mut().enumerate() {
+            key.scancode = chip8_scancodes[pos];
+        }
+
+        println!("cpu.keypad: {:#?}", self.keypad);
     }
 
 }
@@ -104,8 +98,8 @@ impl CPU {
 impl CPU {
     // Fetching two bytes from memory and merging them into one instruction
     fn fetch(&mut self) -> u16 {
-        let high: u16 = (self.ram[self.pc]) as u16;
-        let low: u16 = (self.ram[self.pc + 1]) as u16;
+        let high: u16 = (self.ram[self.pc as usize]) as u16;
+        let low: u16 = (self.ram[self.pc as usize + 1]) as u16;
 
         (high << 8) | low
     }
@@ -122,11 +116,11 @@ impl CPU {
         }
     }
 
-    pub fn step(&mut self) -> State {
+    pub fn step(&mut self) -> State {        
         let op = self.fetch();
 
         self.pc += 2;
-
+        
         // Extracting individual bits of information
         let x: u8 = ((op & 0x0f00) >> 8) as u8;
         let y: u8 = ((op & 0x00f0) >> 4) as u8;
@@ -135,10 +129,12 @@ impl CPU {
         let addr: u16 = (op & 0x0fff) as u16;
         let id: u8 = ((op & 0xf000) >> 12) as u8;
 
+        // println!("Running op 0x{:4x}", op);
+   
         match id {
-            0x0 => match op {
-                0x00e0 => self.op_00e0(),
-                0x00ee => self.op_00ee(),
+            0x0 => match nn {
+                0xe0 => self.op_00e0(),
+                0xee => self.op_00ee(),
                 _ => return State::Paused,
             },
             0x1 => self.op_1nnn(addr),
@@ -177,9 +173,9 @@ impl CPU {
                 0xe => self.op_8xye(x,y),
                 _ => {return State::Paused},
             },
-            0xe => match op {
-                0xe09e => self.op_ex9e(x),
-                0xe0a1 => self.op_exa1(x),
+            0xe => match nn {
+                0x9e => self.op_ex9e(x),
+                0xa1 => self.op_exa1(x),
                 _ => (),
             },
             _ => {
@@ -188,27 +184,6 @@ impl CPU {
         }
 
         State::Running
-    }
-
-    pub fn get_pixel_buf(&self) -> Vec<u32> {
-        let mut buf = Vec::with_capacity((VIDEO_WIDTH * VIDEO_HEIGHT) as usize);
-        let color = 0xFF40E0D0;
-        let bg = 0xFFFF7F50;
-    
-        for y in 0..VIDEO_HEIGHT {
-            for x in 0..VIDEO_WIDTH {
-                let pixel = self.buf[((y * VIDEO_WIDTH) + x) as usize];
-                // Convert pixel value to ARGB format (0xFFFFFcF for white, 0x000000 for black)
-                let color = if pixel != 0 { color } else { bg };
-                buf.push(color);
-            }
-        }
-
-        buf
-    }
-
-    pub fn get_draw(&self) -> bool {
-        return self.draw;
     }
 }
 
@@ -242,7 +217,7 @@ impl CPU {
     }
 
     fn op_bnnn(&mut self, addr: u16) {
-        self.pc = (addr + (self.reg[0] as u16)) as usize;
+        self.pc = addr + (self.reg[0] as u16);
     }
 
     fn op_cxnn(&mut self, x: u8, nn: u8) {
@@ -272,47 +247,13 @@ impl CPU {
     }
 
     fn op_8xy4(&mut self, x:u8, y:u8) {
-        let vx = self.reg[x as usize];
-        let vy = self.reg[y as usize];
+        let vx = self.reg[x as usize] as u16;
+        let vy = self.reg[y as usize] as u16;
+        let sum = vx + vy;
 
-        match vx.checked_add(vy) {
-            Some(sum) => {
-                self.reg[x as usize] = sum;
-                self.reg[0xf] = 0;
-            },
-            None => {
-                self.reg[x as usize] = vx.wrapping_add(vy);
-                self.reg[0xf] = 1;
-            }
-        }
+        self.reg[x as usize] = self.reg[x as usize].wrapping_add(self.reg[y as usize]);
 
-    }
-
-    fn op_8xy5(&mut self, x: u8, y:u8) {
-        let vx = self.reg[x as usize];
-        let vy = self.reg[y as usize];
-
-        match vx.checked_sub(vy) {
-            Some(sub) => {
-                self.reg[x as usize] = sub;
-                self.reg[0xf] = 1;
-            },
-            None => {
-                self.reg[x as usize] = vx.wrapping_sub(vy);
-                self.reg[0xf] = 0;
-                // println!("Overflow occured!");
-            }
-        }
-    }
-
-    fn op_8xy6(&mut self, x:u8, y: u8) {
-        // make configurable
-        self.reg[x as usize] = self.reg[y as usize];
-
-        let ret = self.reg[x as usize] & 1;
-        self.reg[x as usize] >>= 1;
-
-        if ret == 1 { 
+        if sum > 0xff {
             self.reg[0xf] = 1;
         } else {
             self.reg[0xf] = 0;
@@ -320,85 +261,88 @@ impl CPU {
 
     }
 
+    fn op_8xy5(&mut self, x: u8, y:u8) {
+        let vx= self.reg[x as usize];
+        let vy = self.reg[y as usize];
+        let (sub, borrow) = vx.overflowing_sub(vy);
+
+        self.reg[x as usize] = sub;
+        self.reg[0xF] = if borrow { 0 } else { 1 }; // Correct borrow flag
+    }
+
+    fn op_8xy6(&mut self, x:u8, y: u8) {
+        // Set VX to VY
+        self.reg[x as usize] = self.reg[y as usize]; //make configurable
+        let lsb = self.reg[x as usize] & 1;
+        self.reg[x as usize] >>= 1;
+        self.reg[0xF] = lsb;  // VF = original LSB of Vx
+
+    }
+
     fn op_8xye(&mut self, x:u8, y:u8) {
         // Set VX to VY
-        self.reg[x as usize] = self.reg[y as usize];
+        self.reg[x as usize] = self.reg[y as usize]; // make configurable
         let msb = (self.reg[x as usize] & 0x80) >> 7; // get bit thats shifted out
         self.reg[x as usize] <<= 1; 
         self.reg[0xf] = msb;
     }
 
+    // set VX to VY - VX
     fn op_8xy7(&mut self, x:u8, y:u8) {
-        let vx = self.reg[x as usize];
+        let vx= self.reg[x as usize];
         let vy = self.reg[y as usize];
+        let (sub, borrow) = vy.overflowing_sub(vx);
 
-        match vy.checked_sub(vx) {
-            Some(sub) => {
-                self.reg[x as usize] = sub;
-                self.reg[0xf] = 1;
-            },
-            None => {
-                self.reg[x as usize] = vy.wrapping_sub(vx);
-                self.reg[0xf] = 0;
-                // println!("Overflow occured!");
-            }
-        }
+        self.reg[x as usize] = sub;
+        self.reg[0xF] = if borrow { 0 } else { 1 }; // Correct borrow flag
     }
 
     //TODO: revise later
     fn op_fx0a(&mut self, x: u8) {
-        loop {
-            for i in 0..self.keys.len() {
-                if self.keys[i] {
-                    self.reg[x as usize] = KEY_HEXCODES[i];
-                    break;
-                }
-            }
-        }
+        //if let Some(key) = self.keypad.iter().find(|key| key.pressed == true) {
+            //self.reg[x as usize] = key.scancode;
+            //return;
+        //} else {
+            //self.pc -= 2;
+            //self.update_dt();
+            //self.update_st();
+       //}
     }
     
     fn op_ex9e(&mut self, x: u8) {
-        println!("ex9e is being executed");
-        for i in 0..16 {
-            // check that key is pressed and keycode matches vx
-            if self.keys[i] && KEY_HEXCODES[i] == self.reg[x as usize] {
-                println!("ex9e...skipping instruction");
-                self.pc += 2; // skip if VX corresponds to a keycode
-            }
+        let vx = self.reg[x as usize];
+        let key = self.keypad[vx as usize];
+
+        if key.pressed {
+            println!("scancode of key pressed: {}", key.scancode);
+            self.pc += 2;
         }
+        
     }
 
     fn op_exa1(&mut self, x:u8) {
-        let vx = self.reg[x as usize];
-        println!("vx: {:x}", vx);
+        
         // check if key is not pressed
         // check if its contents matches vx
-        for i in 0..16 {
-            let keycode = KEY_HEXCODES[i];
+        let vx = self.reg[x as usize];
+        let key = self.keypad[vx as usize];
 
-            if keycode == vx {
-                if !self.keys[i] {
-                    self.pc += 2;
-                }
-            }
+        if !key.pressed {
+            self.pc += 2;
         }
+
     }
 
     fn op_fx1e(&mut self, x: u8) {
         // TODO: set VF to 1 when index register overflows outside addressing range
         // println!("fx1e is running");
-        let index: u16= self.index;
-        let vx = self.reg[x as usize] as u16;
-        let sum = index + vx;
-        let threshold= 1000;
-
-        self.index = sum;
-
-        // if the index register index goes beyond the addressing range
-        // set VF to 1
-        if sum > threshold {
-            self.reg[0xf] = 1;
-        }
+        let vx = self.reg[x as usize];
+        let sum = self.index.wrapping_add(vx as u16);
+        self.reg[0xf] = match sum > 0xfff {
+            true => 1,
+            false => 0,
+        };
+        self.index = sum; 
     }
 
     fn op_fx07(&mut self, x: u8) {
@@ -414,22 +358,12 @@ impl CPU {
     }
 
     fn op_fx29(&mut self, x:u8) {
-        let char = (self.reg[x as usize]) & 0x000f; // getting the font character
-        let start = 0x050; // this is where fonts begin
-        let end = 0x200;  // this is where fonts end
-
-        for i in start..end {
-            if self.ram[i] == char {
-                // let high: u16 = (self.ram[i]) as u16;
-                // let low: u16 = (self.ram[i + 1]) as u16;
-                // let addr = ((high << 8) | low) & 0x0fff;
-                self.index = i as u16;
-                break;
-            } 
-        }
+        let char = (self.reg[x as usize]) & 0x0f; // getting the font character
+        self.index = 0x050 + (char as u16 * 5); 
     }
 
     fn op_fx33(&mut self, x:u8) {
+        println!("fx33 is running");
         let byte = self.reg[x as usize] as f32;
         let first_digit = (byte / 100.0).floor() as u8 ; // 255 / 100 = 2.55.floor() = 2.00
         let second_digit = (((byte % 100.0) / 10.0).floor()) as u8; // 255 % 100 = 55 / 10 = 5.5.floor() = 5
@@ -449,6 +383,8 @@ impl CPU {
             // println!("i = {}", i);
             self.ram[self.index as usize + i] = self.reg[i];
         }
+
+        // make this configurable
         self.index = self.index + x as u16 + 1;
     }
 
@@ -460,6 +396,7 @@ impl CPU {
             self.reg[i] = self.ram[self.index as usize + i];
         }
 
+        // make this configurable
         self.index = self.index + x as u16 + 1;
     }
 
@@ -468,16 +405,18 @@ impl CPU {
     }
 
     fn op_1nnn(&mut self, addr: u16) {
-        self.pc = addr as usize;
+        self.pc = addr;
     }
 
     fn op_2nnn(&mut self, addr: u16) {
-        self.stack.push(self.pc as u16);
-        self.pc = addr as usize;
+        self.stack[self.sp as usize] = self.pc; // push pc onto stack
+        self.sp += 1; // increment stack pointer
+        self.pc = addr; // update pc
     }
 
     fn op_00ee(&mut self) {
-        self.pc = (self.stack.pop()).unwrap() as usize;
+        self.sp -= 1;
+        self.pc = self.stack[self.sp as usize];
     }
 
     fn op_6xnn(&mut self, x: u8, nn: u8) {
@@ -488,7 +427,6 @@ impl CPU {
         let vx = self.reg[x as usize];
         let result = vx.wrapping_add(nn);
         self.reg[x as usize] = result;
-
     }
 
     fn op_annn(&mut self, addr: u16) {
@@ -496,34 +434,33 @@ impl CPU {
     }
 
     fn op_dxyn(&mut self, x: u8, y: u8, n: u8) {
-        let x_coord = (self.reg[x as usize] as u32) % VIDEO_WIDTH ;
-        let y_coord = (self.reg[y as usize] as u32) % VIDEO_HEIGHT;
+        let x_pos = self.reg[x as usize] as u32 % VIDEO_WIDTH ;
+        let y_pos = self.reg[y as usize] as u32 % VIDEO_HEIGHT;
 
         // set VF to 0
         self.reg[0xf] = 0;
 
         for row in 0..n as u32 {
-            if y_coord + row >= VIDEO_HEIGHT {
+            if y_pos + row >= VIDEO_HEIGHT {
                 break;
             }
             let sprite_byte: u8 = self.ram[(self.index as usize) + (row as usize)];
 
             for col in 0..8 {
-                if x_coord + col >= VIDEO_WIDTH {
+                if x_pos + col > VIDEO_WIDTH {
                     break;
                 }
 
                 let sprite_pixel = sprite_byte & (0x80 >> col); // get each individual pixel
-                let pixel_idx = ((y_coord + row) * VIDEO_WIDTH + (x_coord + col)) as usize;
+                let pixel_idx = ((y_pos + row) * VIDEO_WIDTH + (x_pos + col)) as usize % 2048;
 
                 if sprite_pixel != 0 {
-                    if self.buf[pixel_idx] == 0xFFFFFFFF {
+                    if self.buf[pixel_idx] == 1 {
                         self.reg[0xf] = 1;
                     }
 
-                    self.buf[pixel_idx]^= 0xFFFFFFFF;
+                    self.buf[pixel_idx]^= 1;
                 }
-
             }
         }
         self.draw = true;

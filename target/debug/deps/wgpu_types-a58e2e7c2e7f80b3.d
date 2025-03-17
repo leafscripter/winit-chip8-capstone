@@ -1,0 +1,10 @@
+/Users/qaysarmanken/Documents/winit-prototype/chip8-prototype-gui/target/debug/deps/libwgpu_types-a58e2e7c2e7f80b3.rmeta: /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wgpu-types-24.0.0/src/lib.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wgpu-types-24.0.0/src/assertions.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wgpu-types-24.0.0/src/counters.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wgpu-types-24.0.0/src/env.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wgpu-types-24.0.0/src/instance.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wgpu-types-24.0.0/src/math.rs
+
+/Users/qaysarmanken/Documents/winit-prototype/chip8-prototype-gui/target/debug/deps/wgpu_types-a58e2e7c2e7f80b3.d: /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wgpu-types-24.0.0/src/lib.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wgpu-types-24.0.0/src/assertions.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wgpu-types-24.0.0/src/counters.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wgpu-types-24.0.0/src/env.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wgpu-types-24.0.0/src/instance.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wgpu-types-24.0.0/src/math.rs
+
+/Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wgpu-types-24.0.0/src/lib.rs:
+/Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wgpu-types-24.0.0/src/assertions.rs:
+/Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wgpu-types-24.0.0/src/counters.rs:
+/Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wgpu-types-24.0.0/src/env.rs:
+/Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wgpu-types-24.0.0/src/instance.rs:
+/Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wgpu-types-24.0.0/src/math.rs:

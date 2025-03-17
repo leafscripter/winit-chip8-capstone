@@ -1,0 +1,8 @@
+/Users/qaysarmanken/Documents/winit-prototype/chip8-prototype-gui/target/debug/deps/libstrum-32e1eb6985f27dc3.rmeta: /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/strum-0.26.3/src/lib.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/strum-0.26.3/src/additional_attributes.rs
+
+/Users/qaysarmanken/Documents/winit-prototype/chip8-prototype-gui/target/debug/deps/libstrum-32e1eb6985f27dc3.rlib: /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/strum-0.26.3/src/lib.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/strum-0.26.3/src/additional_attributes.rs
+
+/Users/qaysarmanken/Documents/winit-prototype/chip8-prototype-gui/target/debug/deps/strum-32e1eb6985f27dc3.d: /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/strum-0.26.3/src/lib.rs /Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/strum-0.26.3/src/additional_attributes.rs
+
+/Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/strum-0.26.3/src/lib.rs:
+/Users/qaysarmanken/.cargo/registry/src/index.crates.io-6f17d22bba15001f/strum-0.26.3/src/additional_attributes.rs:
