@@ -1,6 +1,5 @@
-use std::{char::MAX, fs};
+use std::fs;
 use rand::Rng;
-use std::collections::VecDeque;
 
 const MAX_REGISTER_LEN: usize = 16;
 const MAX_RAM_LEN: usize = 4096;
@@ -17,6 +16,12 @@ pub enum State {
     Drawing,
 }
 
+#[derive(PartialEq)]
+pub enum Mode {
+    Modern,
+    Classic,
+}
+
 impl State {
     pub fn new(state: &str) -> Self {
         match state {
@@ -28,7 +33,7 @@ impl State {
     } 
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Key {
     pub scancode: u8,
     pub pressed: bool,
@@ -47,6 +52,7 @@ pub struct CPU {
     sound_timer: u8,
     pub keypad: [Key; MAX_KEYPAD_LEN], // setting a keypad with 15 elements
     pub draw: bool,
+    mode: Mode,
 }
 
 impl CPU {
@@ -64,6 +70,7 @@ impl CPU {
             keypad: [Key{scancode: 0, pressed: false}; MAX_KEYPAD_LEN],
             delay_timer: 0,
             sound_timer: 0,
+            mode: Mode::Classic,
         }
     }
 
@@ -84,13 +91,30 @@ impl CPU {
 
         self
     }
-    
-    pub fn map_keypad(&mut self, chip8_scancodes: &[u8]) {
-        for (pos, key) in self.keypad.iter_mut().enumerate() {
-            key.scancode = chip8_scancodes[pos];
-        }
 
-        println!("cpu.keypad: {:#?}", self.keypad);
+    pub fn set_mode(&mut self ,mode: Mode) {
+        self.mode = mode;
+    }
+    
+    pub fn map_keypad(&mut self) {
+
+        self.keypad[0].scancode = 0x1;
+        self.keypad[1].scancode = 0x2;
+        self.keypad[2].scancode = 0x3;
+        self.keypad[3].scancode = 0xC;
+        self.keypad[4].scancode = 0x4;
+        self.keypad[5].scancode = 0x5;
+        self.keypad[6].scancode = 0x6;
+        self.keypad[7].scancode = 0xD;
+        self.keypad[8].scancode = 0x7;
+        self.keypad[9].scancode = 0x8;
+        self.keypad[10].scancode = 0x9;
+        self.keypad[11].scancode = 0xE;
+        self.keypad[12].scancode = 0xA;
+        self.keypad[13].scancode = 0x0;
+        self.keypad[14].scancode = 0xB;
+        self.keypad[15].scancode = 0xF;
+        
     }
 
 }
@@ -146,7 +170,7 @@ impl CPU {
             0x7 => self.op_7xnn(x, nn),
             0xA => self.op_annn(addr),
             0xD => self.op_dxyn(x, y, n),
-            0xB => self.op_bnnn(addr),
+            0xB => self.op_bnnn(x, nn, addr),
             0xc => self.op_cxnn(x, nn),
             0x9 => self.op_9xy0(x, y),
             0xF => match nn {
@@ -216,15 +240,26 @@ impl CPU {
         }
     }
 
-    fn op_bnnn(&mut self, addr: u16) {
-        self.pc = addr + (self.reg[0] as u16);
+    fn op_bnnn(&mut self, x: u8, nn: u8, addr: u16) {
+        match self.mode {
+            Mode::Classic => self.pc = addr + (self.reg[0] as u16),
+            Mode::Modern => {
+                let mut xnn = x as u16;
+                xnn <<= 8;
+                xnn |= nn as u16;
+                let vx = self.reg[x as usize];
+                self.pc = (xnn as u8 + vx) as u16;
+            },
+
+        };
     }
 
     fn op_cxnn(&mut self, x: u8, nn: u8) {
-        let mut rng = rand::rng();
-        let rand = rng.random_range(0..=nn);
 
-        self.reg[x as usize] = rand & nn;
+        let mut rng = rand::rng();  // Correct way to get RNG
+        let random_num = rng.random::<u8>();  // Generate random u8
+    
+        self.reg[x as usize] = random_num & nn;  // Bitwise AND with nn
     }
 
     fn op_8xy0(&mut self, x:u8, y:u8) {
@@ -272,7 +307,11 @@ impl CPU {
 
     fn op_8xy6(&mut self, x:u8, y: u8) {
         // Set VX to VY
-        self.reg[x as usize] = self.reg[y as usize]; //make configurable
+
+        if self.mode == Mode::Classic {
+            self.reg[x as usize] = self.reg[y as usize]; //make configurable
+        }
+
         let lsb = self.reg[x as usize] & 1;
         self.reg[x as usize] >>= 1;
         self.reg[0xF] = lsb;  // VF = original LSB of Vx
@@ -281,7 +320,9 @@ impl CPU {
 
     fn op_8xye(&mut self, x:u8, y:u8) {
         // Set VX to VY
-        self.reg[x as usize] = self.reg[y as usize]; // make configurable
+        if self.mode == Mode::Classic {
+            self.reg[x as usize] = self.reg[y as usize]; // make configurable
+        }
         let msb = (self.reg[x as usize] & 0x80) >> 7; // get bit thats shifted out
         self.reg[x as usize] <<= 1; 
         self.reg[0xf] = msb;
@@ -299,38 +340,50 @@ impl CPU {
 
     //TODO: revise later
     fn op_fx0a(&mut self, x: u8) {
-        //if let Some(key) = self.keypad.iter().find(|key| key.pressed == true) {
-            //self.reg[x as usize] = key.scancode;
-            //return;
-        //} else {
-            //self.pc -= 2;
-            //self.update_dt();
-            //self.update_st();
-       //}
+        let mut key_pressed = false;
+    
+        for (i, key) in self.keypad.iter().enumerate() {
+            if key.pressed {
+                self.reg[x as usize] = key.scancode; // Use scancode, not index
+                key_pressed = true;
+                break;
+            }
+        }
+    
+        if !key_pressed {
+            self.pc -= 2;
+            self.update_dt();
+            self.update_st();
+        }
     }
     
     fn op_ex9e(&mut self, x: u8) {
-        let vx = self.reg[x as usize];
-        let key = self.keypad[vx as usize];
-
-        if key.pressed {
-            println!("scancode of key pressed: {}", key.scancode);
-            self.pc += 2;
+        let key_value = self.reg[x as usize];
+    
+        // Find the key with this scancode
+        for key in &self.keypad {
+            if key.scancode == key_value && key.pressed {
+                self.pc += 2;
+                break;
+            }
         }
-        
     }
 
     fn op_exa1(&mut self, x:u8) {
-        
-        // check if key is not pressed
-        // check if its contents matches vx
-        let vx = self.reg[x as usize];
-        let key = self.keypad[vx as usize];
-
-        if !key.pressed {
+        let key_value = self.reg[x as usize];
+        let mut key_pressed = false;
+    
+        // Find the key with this scancode
+        for key in &self.keypad {
+            if key.scancode == key_value && key.pressed {
+                key_pressed = true;
+                break;
+            }
+        }
+    
+        if !key_pressed {
             self.pc += 2;
         }
-
     }
 
     fn op_fx1e(&mut self, x: u8) {
@@ -363,29 +416,23 @@ impl CPU {
     }
 
     fn op_fx33(&mut self, x:u8) {
-        println!("fx33 is running");
-        let byte = self.reg[x as usize] as f32;
-        let first_digit = (byte / 100.0).floor() as u8 ; // 255 / 100 = 2.55.floor() = 2.00
-        let second_digit = (((byte % 100.0) / 10.0).floor()) as u8; // 255 % 100 = 55 / 10 = 5.5.floor() = 5
-        let third_digit = ((byte % 100.0) % 10.0) as u8; // 255 % 100 = 55 % 10
-        
-        self.ram[self.index as usize] = first_digit;
-        self.ram[self.index as usize + 1] = second_digit;
-        self.ram[self.index as usize + 2] = third_digit;
+        let byte = self.reg[x as usize];
+        self.ram[self.index as usize] = byte / 100;
+        self.ram[self.index as usize + 1] = (byte / 10) % 10;
+        self.ram[self.index as usize + 2] = byte % 10;
     }
 
     fn op_fx55(&mut self, x: u8) {
         // store V0-VX in ram[index + X]
         // Modern behavior
-        // TODO: Implement old behavior (increment index)
-        // println!("x = {}", x);
-        for i in 0..=x as usize {
+        for i in 0..=x {
             // println!("i = {}", i);
-            self.ram[self.index as usize + i] = self.reg[i];
+            self.ram[(self.index + i as u16) as usize] = self.reg[i as usize];
         }
 
-        // make this configurable
-        self.index = self.index + x as u16 + 1;
+        if self.mode == Mode::Classic {
+            self.index = self.index + x as u16 + 1;
+        }
     }
 
     fn op_fx65(&mut self, x: u8) {
@@ -396,8 +443,9 @@ impl CPU {
             self.reg[i] = self.ram[self.index as usize + i];
         }
 
-        // make this configurable
-        self.index = self.index + x as u16 + 1;
+        if self.mode == Mode::Classic {
+            self.index = self.index + x as u16 + 1;
+        }
     }
 
     fn op_00e0(&mut self) {

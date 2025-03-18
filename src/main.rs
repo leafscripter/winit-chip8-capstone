@@ -1,5 +1,8 @@
 mod cpu;
 
+use std::fs;
+use std::io::{self, Write};
+use std::process::Command;
 use cpu::CPU;
 use std::sync::Arc;
 use std::thread::sleep;
@@ -57,25 +60,6 @@ const FONT_SPRITES: [u8; 80]  = [
     0xF0, 0x80, 0xF0, 0x80, 0x80, //F
 ];
 
-const KEY_MAPPING: [KeyCode; 16] = [
-    KeyCode::Digit1, // 1
-    KeyCode::Digit2, // 2
-    KeyCode::Digit3, // 3
-    KeyCode::Digit4, // c
-    KeyCode::KeyQ,   // 4
-    KeyCode::KeyW,   // 5
-    KeyCode::KeyE,   // 6
-    KeyCode::KeyR,   // D
-    KeyCode::KeyA,   // 7
-    KeyCode::KeyS,   // 8
-    KeyCode::KeyD,   // 9
-    KeyCode::KeyF,   // E
-    KeyCode::KeyZ,   // A
-    KeyCode::KeyX,   // 0
-    KeyCode::KeyC,   // B
-    KeyCode::KeyV,   // F
-];
-
 struct Emulator<'a> {
     window: Option<Arc<Window>>,
     pixels: Option<Pixels<'a>>,
@@ -105,8 +89,7 @@ impl Default for CPU {
     fn default() -> Self {
         let mut cpu = CPU::new();
         cpu.load_font(&FONT_SPRITES);
-        cpu.load_rom("6-keypad.ch8");
-        // cpu.map_keypad(&CHIP8_SCANCODES);
+        cpu.map_keypad();
 
         cpu
     }
@@ -151,8 +134,6 @@ impl ApplicationHandler for Emulator<'_> {
             self.next_frame_time = Instant::now() + self.interval; // for timing logic
 
             self.window.as_ref().unwrap().request_redraw();
-
-            println!("KEY_MAPPINGS: {:#?}", KEY_MAPPING);
         }
 
     }
@@ -215,34 +196,25 @@ impl ApplicationHandler for Emulator<'_> {
                 // when a key is released, update the corresponding index in cpu.keys (set to false)
 
 
-                // match event.physical_key {
-                //     PhysicalKey::Code(KeyCode::Digit1) => {
-                //         if event.state
-                //         self.cpu.keypad[0].pressed = true;
-                //     }
-
-                // }
-
-                if let PhysicalKey::Code(code) = event.physical_key {
-                    for (idx, keycode) in KEY_MAPPING.iter().enumerate() {
-                        if *keycode == code {
-                            match event.state {
-                                ElementState::Pressed => {
-                                    self.cpu.keypad[idx].pressed = true;
-                                    println!("Key {:?} pressed -> CHIP-8 Key {:x}", code, self.cpu.keypad[idx].scancode);
-                                    // println!("{:x} is registered as pressed; truth: {}", self.cpu.keypad[idx].scancode, self.cpu.keypad[idx].pressed);                            
-                                },
-                                ElementState::Released => {
-                                    self.cpu.keypad[idx].pressed = false; 
-                                    // println!("Key {:?} released -> CHIP-8 Key {:x}", event.physical_key, self.cpu.keypad[idx].scancode);
-                                    // println!("{:x} is registered as not pressed; truth: {}", self.cpu.keypad[idx].scancode, !self.cpu.keypad[idx].pressed);
-                                },
-                            }
-                        }
-                    }
-                }
-                
-                
+                match event.physical_key {
+                    PhysicalKey::Code(KeyCode::Digit1) => self.cpu.keypad[0].pressed = event.state == ElementState::Pressed,
+                    PhysicalKey::Code(KeyCode::Digit2) => self.cpu.keypad[1].pressed = event.state == ElementState::Pressed,
+                    PhysicalKey::Code(KeyCode::Digit3) => self.cpu.keypad[2].pressed = event.state == ElementState::Pressed,
+                    PhysicalKey::Code(KeyCode::Digit4) => self.cpu.keypad[3].pressed = event.state == ElementState::Pressed,
+                    PhysicalKey::Code(KeyCode::KeyQ) => self.cpu.keypad[4].pressed = event.state == ElementState::Pressed,
+                    PhysicalKey::Code(KeyCode::KeyW) => self.cpu.keypad[5].pressed = event.state == ElementState::Pressed,
+                    PhysicalKey::Code(KeyCode::KeyE) => self.cpu.keypad[6].pressed = event.state == ElementState::Pressed,
+                    PhysicalKey::Code(KeyCode::KeyR) => self.cpu.keypad[7].pressed = event.state == ElementState::Pressed,
+                    PhysicalKey::Code(KeyCode::KeyA) => self.cpu.keypad[8].pressed = event.state == ElementState::Pressed,
+                    PhysicalKey::Code(KeyCode::KeyS) => self.cpu.keypad[9].pressed = event.state == ElementState::Pressed,
+                    PhysicalKey::Code(KeyCode::KeyD) => self.cpu.keypad[10].pressed = event.state == ElementState::Pressed,
+                    PhysicalKey::Code(KeyCode::KeyF) => self.cpu.keypad[11].pressed = event.state == ElementState::Pressed,
+                    PhysicalKey::Code(KeyCode::KeyZ) => self.cpu.keypad[12].pressed = event.state == ElementState::Pressed,
+                    PhysicalKey::Code(KeyCode::KeyX) => self.cpu.keypad[13].pressed = event.state == ElementState::Pressed,
+                    PhysicalKey::Code(KeyCode::KeyC) => self.cpu.keypad[14].pressed = event.state == ElementState::Pressed,
+                    PhysicalKey::Code(KeyCode::KeyV) => self.cpu.keypad[15].pressed = event.state == ElementState::Pressed,
+                    _ => {},
+                }                
             },
             _ => (),
         }
@@ -251,11 +223,52 @@ impl ApplicationHandler for Emulator<'_> {
 
 fn main() {
 
+    let rom_dir = "ROMS/";
+
+    // List available ROMs
+    match fs::read_dir(rom_dir) {
+        Ok(entries) => {
+            println!("Available games:");
+            for entry in entries {
+                if let Ok(entry) = entry {
+                    if let Some(filename) = entry.file_name().to_str() {
+                        println!("{}", filename);
+                    }
+                }
+            }
+        }
+        Err(_) => {
+            println!("Failed to read ROM directory. Make sure 'ROMS/' exists.");
+            return;
+        }
+    }
+
+    print!("Enter filename: ");
+    io::stdout().flush().unwrap();
+    let mut filename = String::new();
+    io::stdin().read_line(&mut filename).unwrap();
+    let filename = format!("{}{}", rom_dir, filename.trim()); // Prefix "ROMS/"
+
+    print!("Enter mode (1 for Classic, 2 for Modern): ");
+    io::stdout().flush().unwrap();
+    let mut mode_input = String::new();
+    io::stdin().read_line(&mut mode_input).unwrap();
+    let mode_input = mode_input.trim();
+
     // Handle window logic
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
 
     let mut emu = Emulator::default();
+    
+    emu.cpu.load_rom(&filename);
+
+    match mode_input {
+        "1" => emu.cpu.set_mode(cpu::Mode::Classic),
+        "2" => emu.cpu.set_mode(cpu::Mode::Modern),
+        _ => (),
+    }
+
     event_loop.run_app(&mut emu);
 
 
